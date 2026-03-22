@@ -21,13 +21,12 @@
             padding: 20px;
             text-align: center;
             color: #333;
-            /* スマホ対応のため、画面幅に合わせてレイアウトを調整 */
         }
 
         h1 { 
             margin-bottom: 10px; 
             font-size: 1.5rem; 
-            word-break: break-all; /* タイトルが長すぎても折り返し */
+            word-break: break-all;
         }
         
         /* スタンプ表示エリア */
@@ -39,7 +38,6 @@
             margin: 0 auto 30px auto;
         }
 
-        /* スマホでは 1 列に並べる場合の調整（オプション） */
         @media (max-width: 480px) {
             .stamp-grid { grid-template-columns: 1fr; }
         }
@@ -54,14 +52,13 @@
         }
 
         .stamp-item.completed {
-            background-color: #e8f5e9; /* 緑色 */
+            background-color: #e8f5e9; 
             border: 2px solid var(--secondary-color);
         }
 
         .stamp-icon { font-size: 40px; display: block; margin-bottom: 10px; }
         .stamp-name { font-weight: bold; font-size: 0.9rem; word-break: break-all;}
         
-        /* スタンプが押された時の演出用アニメーション */
         @keyframes pop {
             0% { transform: scale(1); }
             50% { transform: scale(1.2); }
@@ -94,9 +91,19 @@
         #scan-btn:active, #reset-btn:active { transform: scale(0.95); }
 
         /* カメラ画面 */
-        #reader { width: 100%; display: none; margin-top: 20px;}
-        
-        /* コンプリート演出用オーバーレイ（スマホ対応） */
+        #reader { 
+            width: 100%; 
+            display: none; 
+            margin-top: 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 50;
+        }
+
+        /* コンプリート演出用オーバーレイ */
         #completion-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.9);
@@ -111,7 +118,7 @@
         }
 
         #completion-overlay h2 { 
-            font-size: clamp(2rem, 8vw, 3.5rem); /* スマホでも PC でも最適なサイズ */
+            font-size: clamp(2rem, 8vw, 3.5rem); 
             margin-bottom: 10px; 
             animation: pop 0.5s infinite alternate;
             text-align: center;
@@ -222,6 +229,13 @@
             console.error("Camera start error:", err);
             alert("カメラの起動に失敗しました。\nブラウザの許可を確認してください。");
         });
+
+        // カメラ起動時に、タイトルとボタンを非表示にする処理
+        setTimeout(() => {
+            document.querySelector('h1').style.display = 'none';
+            scanBtn.style.display = 'none';
+            resetBtn.style.display = 'none';
+        }, 500);
     });
 
     function onScanSuccess(decodedText, decodedResult) {
@@ -274,6 +288,15 @@
             alert("リセット完了しました！");
         }
     }
+
+    // 画面戻り時にタイトルとボタンを表示する処理
+    function showUI() {
+        document.querySelector('h1').style.display = 'block';
+        scanBtn.style.display = 'block';
+        resetBtn.style.display = 'block';
+    }
+
+    html5QrcodeScanner.onScanSuccess = onScanSuccess; // 読み取り成功時の処理を登録
 
     function closeOverlay() {
         document.getElementById('completion-overlay').style.display = 'none';
