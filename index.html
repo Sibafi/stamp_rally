@@ -140,22 +140,23 @@
 </head>
 <body>
 
+    <!-- タイトル -->
     <h1>🎉 スタンプラリー 🎉</h1>
     
-    <!-- スタンプ表示エリア -->
+    <!-- QR コード読み取り画面（初期は非表示） -->
+    <div id="reader"></div>
+
+    <!-- 各ブースのスタンプラリー -->
     <div class="stamp-grid" id="stamp-container">
         <!-- JavaScript で生成されます -->
     </div>
 
-    <!-- 操作ボタン -->
+    <!-- 操作ボタンエリア -->
     <div class="action-area">
         <button id="scan-btn">📷 QR コードを読み取る</button>
         
         <!-- リセットボタン -->
         <button id="reset-btn" onclick="resetProgress()">🔄 スタンプをリセットする</button>
-
-        <!-- カメラ読み込みエリア -->
-        <div id="reader"></div>
     </div>
 
     <!-- コンプリート演出 -->
@@ -230,12 +231,8 @@
             alert("カメラの起動に失敗しました。\nブラウザの許可を確認してください。");
         });
 
-        // カメラ起動時に、タイトルとボタンを非表示にする処理
-        setTimeout(() => {
-            document.querySelector('h1').style.display = 'none';
-            scanBtn.style.display = 'none';
-            resetBtn.style.display = 'none';
-        }, 500);
+        // カメラ起動時に、タイトルとボタンを非表示にする処理（オプション）
+        // 上記の並び順に合わせて、今回は非表示にしません
     });
 
     function onScanSuccess(decodedText, decodedResult) {
@@ -288,15 +285,6 @@
             alert("リセット完了しました！");
         }
     }
-
-    // 画面戻り時にタイトルとボタンを表示する処理
-    function showUI() {
-        document.querySelector('h1').style.display = 'block';
-        scanBtn.style.display = 'block';
-        resetBtn.style.display = 'block';
-    }
-
-    html5QrcodeScanner.onScanSuccess = onScanSuccess; // 読み取り成功時の処理を登録
 
     function closeOverlay() {
         document.getElementById('completion-overlay').style.display = 'none';
