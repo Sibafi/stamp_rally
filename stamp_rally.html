@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>スマホスタンプラリー</title>
+    <style>
+        :root {
+            --primary-color: #ff6b6b;
+            --secondary-color: #4ecdc4;
+            --bg-color: #f7f9fc;
+            --text-color: #2d3436;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .stamp-counter {
+            background: #fff;
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .game-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .game-item {
+            background: white;
+            border-radius: 12px;
+            padding: 20px 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .game-item:active {
+            transform: scale(0.95);
+        }
+
+        .game-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .game-name {
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        /* クリア済みスタイル */
+        .game-item.completed {
+            border-color: var(--secondary-color);
+            background-color: #e0f7fa;
+        }
+        
+        .game-item.completed::after {
+            content: '✓';
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        /* コンプリート演出用 */
+        #completion-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+
+        .completion-title {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .completion-message {
+            font-size: 1.5rem;
+            color: #555;
+            max-width: 80%;
+            line-height: 1.6;
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>🎉 スタンプラリー 🎉</h1>
+
+    <div class="stamp-counter">
+        スタンプ：<span id="count">0</span>/7
+    </div>
+
+    <div class="game-list" id="gameList">
+        <!-- ゲームリストがここに生成されます -->
+    </div>
+
+    <!-- コンプリート画面 -->
+    <div id="completion-screen">
+        <h1 class="completion-title">🎊 おめでとう！ 🎊</h1>
+        <p class="completion-message">
+            全てのゲームをクリアしました！<br>
+            あなたは素晴らしいプレイヤーです！
+        </p>
+    </div>
+
+    <script>
+        // ゲームデータ設定
+        const games = [
+            { name: "ピンポン玉ゲーム", icon: "🎱" },
+            { name: "輪投げ", icon: "🪀" },
+            { name: "射的", icon: "🎯" },
+            { name: "お手玉投げゲーム", icon: "🧸" },
+            { name: "スーパーボウルすくい", icon: "🏈" },
+            { name: "オセロゲーム", icon: "⚫⚪" },
+            { name: "スリッパ飛ばし", icon: "🩴" }
+        ];
+
+        let stampCount = 0;
+        const maxStamps = 7;
+        const gameListEl = document.getElementById('gameList');
+        const countEl = document.getElementById('count');
+        const completionScreen = document.getElementById('completion-screen');
+
+        // ゲームリストの生成
+        games.forEach((game, index) => {
+            const div = document.createElement('div');
+            div.className = 'game-item';
+            div.id = `game-${index}`;
+            div.innerHTML = `
+                <span class="game-icon">${game.icon}</span>
+                <span class="game-name">${game.name}</span>
+            `;
+            
+            // クリア時のイベント
+            div.addEventListener('click', () => {
+                completeGame(index);
+            });
+
+            gameListEl.appendChild(div);
+        });
+
+        function completeGame(index) {
+            const item = document.getElementById(`game-${index}`);
+            
+            if (item.classList.contains('completed')) return; // 既にある場合は何もしない
+
+            // スタンプ数増やす
+            stampCount++;
+            countEl.textContent = stampCount;
+            
+            // UI を更新（チェックマーク付きにする）
+            item.classList.add('completed');
+
+            // コンプリート判定
+            if (stampCount >= maxStamps) {
+                triggerCompletion();
+            }
+        }
+
+        function triggerCompletion() {
+            // 画面を白くして演出を入れる
+            document.body.style.backgroundColor = "#fff";
+            
+            // 3 秒後にコンプリート画面を表示
+            setTimeout(() => {
+                completionScreen.style.display = 'flex';
+                
+                // カンフェティ（紙吹雪）の演出
+                createConfetti();
+            }, 500);
+        }
+
+        function createConfetti() {
+            const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#1a535c'];
+            
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                
+                // ランダムな色と位置
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = -20 + 'px';
+                confetti.style.animationDuration = (Math.random() * 3 + 2) + 's'; // 2〜5秒で落ちる
+                
+                document.body.appendChild(confetti);
+
+                // アニメーション終了後に削除
+                setTimeout(() => {
+                    confetti.remove();
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
