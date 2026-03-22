@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>スマホスタンプラリー</title>
+    <title>スタンプラリー</title>
+    <!-- QR コード生成ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <style>
         :root {
             --primary-color: #ff6b6b;
@@ -19,233 +21,214 @@
             margin: 0;
             padding: 20px;
             text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
+            transition: background-color 1s ease;
         }
 
-        h1 {
-            color: var(--primary-color);
-            font-size: 2rem;
-            margin-bottom: 10px;
-        }
-
+        h1 { font-size: 1.5rem; margin-bottom: 10px; color: var(--primary-color); }
+        
+        /* スタンプカウンター */
         .stamp-counter {
-            background: #fff;
+            background: white;
             padding: 15px;
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-            font-size: 1.2rem;
+            margin-bottom: 20px;
             font-weight: bold;
         }
 
+        /* ゲームリスト */
         .game-list {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 15px;
-            width: 100%;
-            max-width: 600px;
+            margin-top: 20px;
         }
 
         .game-item {
             background: white;
             border-radius: 12px;
-            padding: 20px 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             cursor: pointer;
             transition: transform 0.2s, background-color 0.3s;
             border: 2px solid transparent;
         }
 
-        .game-item:active {
-            transform: scale(0.95);
-        }
-
-        .game-icon {
-            font-size: 2rem;
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        .game-name {
-            font-weight: bold;
-            font-size: 1rem;
-        }
-
-        /* クリア済みスタイル */
-        .game-item.completed {
-            border-color: var(--secondary-color);
-            background-color: #e0f7fa;
-        }
+        .game-item:active { transform: scale(0.98); }
         
-        .game-item.completed::after {
-            content: '✓';
-            position: absolute;
-            top: 5px;
-            right: 10px;
-            color: var(--primary-color);
-            font-weight: bold;
+        /* スタンプ押した時の状態 */
+        .game-item.stamped {
+            background-color: #ffeaa7;
+            border-color: var(--primary-color);
+            opacity: 0.6;
         }
 
-        /* コンプリート演出用 */
-        #completion-screen {
-            display: none;
+        .game-icon { font-size: 2rem; display: block; margin-bottom: 5px; }
+        .game-name { font-weight: bold; font-size: 1rem; }
+
+        /* QR コード表示エリア */
+        #qr-area {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.95);
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: white;
             z-index: 100;
+            display: none;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
         }
 
-        .confetti {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background-color: #f00;
-            animation: fall linear forwards;
+        #qr-code { margin-top: 20px; padding: 10px; background: white;}
+        
+        .close-btn {
+            position: absolute; top: 20px; right: 20px;
+            font-size: 2rem; color: #333; cursor: pointer; z-index: 101;
         }
 
-        @keyframes fall {
-            to { transform: translateY(100vh) rotate(720deg); }
+        /* コンプリート演出 */
+        .congrats-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
 
-        .completion-title {
-            font-size: 3rem;
-            color: var(--primary-color);
-            margin-bottom: 20px;
-            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        .completion-message {
-            font-size: 1.5rem;
-            color: #555;
-            max-width: 80%;
-            line-height: 1.6;
-        }
-
+        .congrats-title { font-size: 3rem; color: var(--primary-color); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        
         @keyframes popIn {
-            from { transform: scale(0); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
         }
 
     </style>
 </head>
 <body>
 
-    <h1>🎉 スタンプラリー 🎉</h1>
+    <h1 id="main-title">スタンプラリー</h1>
 
     <div class="stamp-counter">
-        スタンプ：<span id="count">0</span>/7
+        スタンプ数：<span id="count-display" style="color: var(--primary-color); font-size: 1.5rem;">0</span>/7<br>
+        <small id="status-text">まだスタートです！</small>
     </div>
 
-    <div class="game-list" id="gameList">
-        <!-- ゲームリストがここに生成されます -->
+    <div class="game-list" id="game-container">
+        <!-- JavaScript でゲーム項目が生成されます -->
     </div>
 
-    <!-- コンプリート画面 -->
-    <div id="completion-screen">
-        <h1 class="completion-title">🎊 おめでとう！ 🎊</h1>
-        <p class="completion-message">
-            全てのゲームをクリアしました！<br>
-            あなたは素晴らしいプレイヤーです！
-        </p>
+    <!-- QR コード表示用モーダル -->
+    <div id="qr-area">
+        <span class="close-btn" onclick="closeQR()">×</span>
+        <h2>この QR コードを読み込んでください</h2>
+        <p style="color:#666; font-size:0.9rem;">スマホのカメラで読み込ませてください</p>
+        <div id="qr-code"></div>
     </div>
 
-    <script>
-        // ゲームデータ設定
-        const games = [
-            { name: "ピンポン玉ゲーム", icon: "🎱" },
-            { name: "輪投げ", icon: "🪀" },
-            { name: "射的", icon: "🎯" },
-            { name: "お手玉投げゲーム", icon: "🧸" },
-            { name: "スーパーボウルすくい", icon: "🏈" },
-            { name: "オセロゲーム", icon: "⚫⚪" },
-            { name: "スリッパ飛ばし", icon: "🩴" }
-        ];
+    <!-- コンプリート演出用モーダル -->
+    <div class="congrats-overlay" id="congrats">
+        <h1 class="congrats-title">🎉 おめでとうございます！ 🎉</h1>
+        <p style="font-size: 2rem;">コンプリートしました！</p>
+        <button onclick="location.reload()" style="margin-top:30px; padding:15px 30px; font-size:1.2rem; background:var(--primary-color); color:white; border:none; border-radius:50px;">リセットする</button>
+    </div>
 
-        let stampCount = 0;
-        const maxStamps = 7;
-        const gameListEl = document.getElementById('gameList');
-        const countEl = document.getElementById('count');
-        const completionScreen = document.getElementById('completion-screen');
+<script>
+    // ゲームデータ設定
+    const games = [
+        { id: 'pinball', name: 'ピンポン玉ゲーム', icon: '🎱' },
+        { id: 'ring', name: '輪投げ', icon: '🪀' },
+        { id: 'darts', name: '射的', icon: '🎯' },
+        { id: 'marbles', name: 'お手玉投げゲーム', icon: '🧿' },
+        { id: 'bowl', name: 'スーパーボウルすくい', icon: '🥣' },
+        { id: 'reversi', name: 'オセロゲーム', icon: '⚫⚪' },
+        { id: 'slipper', name: 'スリッパ飛ばし', icon: '🩴' }
+    ];
 
-        // ゲームリストの生成
-        games.forEach((game, index) => {
+    let currentStampCount = 0; // 現在のスタンプ数
+    const totalStamps = 7;
+
+    // ゲームリストの描画
+    function renderGames() {
+        const container = document.getElementById('game-container');
+        games.forEach(game => {
             const div = document.createElement('div');
             div.className = 'game-item';
-            div.id = `game-${index}`;
-            div.innerHTML = `
-                <span class="game-icon">${game.icon}</span>
-                <span class="game-name">${game.name}</span>
-            `;
+            div.id = `game-${game.id}`;
+            div.innerHTML = `<span class="game-icon">${game.icon}</span><span class="game-name">${game.name}</span>`;
             
-            // クリア時のイベント
-            div.addEventListener('click', () => {
-                completeGame(index);
-            });
-
-            gameListEl.appendChild(div);
+            // クリックイベント（スタンプ押下）
+            div.onclick = () => handleStamp(game);
+            container.appendChild(div);
         });
+    }
 
-        function completeGame(index) {
-            const item = document.getElementById(`game-${index}`);
-            
-            if (item.classList.contains('completed')) return; // 既にある場合は何もしない
+    // スタンプ押下の処理
+    function handleStamp(game) {
+        const gameEl = document.getElementById(`game-${game.id}`);
+        
+        // 既に押している場合は何もしない
+        if (gameEl.classList.contains('stamped')) return;
 
-            // スタンプ数増やす
-            stampCount++;
-            countEl.textContent = stampCount;
-            
-            // UI を更新（チェックマーク付きにする）
-            item.classList.add('completed');
+        // スタンプ押下演出（少し揺らす）
+        gameEl.style.transform = "scale(1.05)";
+        setTimeout(() => gameEl.style.transform = "scale(1)", 200);
 
-            // コンプリート判定
-            if (stampCount >= maxStamps) {
-                triggerCompletion();
+        // 状態変更
+        gameEl.classList.add('stamped');
+        
+        // カウント更新
+        currentStampCount++;
+        document.getElementById('count-display').innerText = currentStampCount;
+
+        // ステータステキスト更新
+        const statusText = document.getElementById('status-text');
+        if (currentStampCount === 1) {
+            statusText.innerText = "スタートしました！";
+        } else if (currentStampCount >= totalStamps - 2) {
+            statusText.innerText = "あと少し！ラストスパートです！";
+        }
+
+        // コンプリート判定
+        if (currentStampCount === totalStamps) {
+            setTimeout(showCongrats, 1000); // 少し待ってから演出
+        }
+    }
+
+    // QR コード表示処理
+    function showQR(gameId) {
+        const qrArea = document.getElementById('qr-area');
+        const qrCodeDiv = document.getElementById('qr-code');
+        
+        // URL パラメータを生成（例：index.html?game=pinball）
+        const url = window.location.href.split('?')[0] + '?game=' + gameId;
+
+        qrcode.toCanvas(url, { width: 256 }, function (error, canvas) {
+            if (!error) {
+                qrCodeDiv.appendChild(canvas);
+                qrArea.style.display = 'flex';
             }
-        }
+        });
+    }
 
-        function triggerCompletion() {
-            // 画面を白くして演出を入れる
-            document.body.style.backgroundColor = "#fff";
-            
-            // 3 秒後にコンプリート画面を表示
-            setTimeout(() => {
-                completionScreen.style.display = 'flex';
-                
-                // カンフェティ（紙吹雪）の演出
-                createConfetti();
-            }, 500);
-        }
+    // QR コード閉じる処理
+    function closeQR() {
+        document.getElementById('qr-area').style.display = 'none';
+    }
 
-        function createConfetti() {
-            const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#1a535c'];
-            
-            for (let i = 0; i < 100; i++) {
-                const confetti = document.createElement('div');
-                confetti.className = 'confetti';
-                
-                // ランダムな色と位置
-                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-                confetti.style.left = Math.random() * 100 + 'vw';
-                confetti.style.top = -20 + 'px';
-                confetti.style.animationDuration = (Math.random() * 3 + 2) + 's'; // 2〜5秒で落ちる
-                
-                document.body.appendChild(confetti);
+    // コンプリート演出表示
+    function showCongrats() {
+        const congrats = document.getElementById('congrats');
+        congrats.style.display = 'flex';
+        
+        // 背景を祝祭モードに変更
+        document.body.style.backgroundColor = '#ffeaa7';
+        document.querySelector('h1').innerText = "🎉 おめでとう！ 🎉";
+    }
 
-                // アニメーション終了後に削除
-                setTimeout(() => {
-                    confetti.remove();
-                }, 5000);
-            }
-        }
-    </script>
+    // 初期化
+    renderGames();
+
+</script>
 </body>
 </html>
