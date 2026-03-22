@@ -2,232 +2,241 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>スタンプラリー</title>
-    <!-- QR コード生成ライブラリ -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <!-- QR コード読み込みライブラリ -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
             --primary-color: #ff6b6b;
             --secondary-color: #4ecdc4;
             --bg-color: #f7f9fc;
-            --text-color: #2d3436;
+            --card-bg: #ffffff;
         }
 
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: var(--bg-color);
-            color: var(--text-color);
             margin: 0;
             padding: 20px;
             text-align: center;
-            transition: background-color 1s ease;
+            color: #333;
         }
 
-        h1 { font-size: 1.5rem; margin-bottom: 10px; color: var(--primary-color); }
+        h1 { margin-bottom: 10px; font-size: 1.5rem; }
         
-        /* スタンプカウンター */
-        .stamp-counter {
-            background: white;
-            padding: 15px;
-            border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            font-weight: bold;
-        }
-
-        /* ゲームリスト */
-        .game-list {
+        /* スタンプ表示エリア */
+        .stamp-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 15px;
-            margin-top: 20px;
+            max-width: 600px;
+            margin: 0 auto 30px auto;
         }
 
-        .game-item {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        .stamp-item {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .stamp-item.completed {
+            background-color: #e8f5e9; /* 緑色 */
+            border: 2px solid var(--secondary-color);
+        }
+
+        .stamp-icon { font-size: 40px; display: block; margin-bottom: 10px; }
+        .stamp-name { font-weight: bold; font-size: 0.9rem; }
+        
+        /* スタンプが押された時の演出用アニメーション */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        .stamp-item.completed .stamp-icon { animation: pop 0.3s ease; }
+
+        /* ボタンエリア */
+        .action-area {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        #scan-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            border-radius: 50px;
             cursor: pointer;
-            transition: transform 0.2s, background-color 0.3s;
-            border: 2px solid transparent;
+            box-shadow: 0 4px 10px rgba(255, 107, 107, 0.4);
+            transition: transform 0.2s;
         }
 
-        .game-item:active { transform: scale(0.98); }
+        #scan-btn:active { transform: scale(0.95); }
         
-        /* スタンプ押した時の状態 */
-        .game-item.stamped {
-            background-color: #ffeaa7;
-            border-color: var(--primary-color);
-            opacity: 0.6;
-        }
-
-        .game-icon { font-size: 2rem; display: block; margin-bottom: 5px; }
-        .game-name { font-weight: bold; font-size: 1rem; }
-
-        /* QR コード表示エリア */
-        #qr-area {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: white;
-            z-index: 100;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #qr-code { margin-top: 20px; padding: 10px; background: white;}
+        /* カメラ画面 */
+        #reader { width: 100%; display: none; margin-top: 20px;}
         
-        .close-btn {
-            position: absolute; top: 20px; right: 20px;
-            font-size: 2rem; color: #333; cursor: pointer; z-index: 101;
-        }
-
-        /* コンプリート演出 */
-        .congrats-overlay {
+        /* コンプリート演出用オーバーレイ */
+        #completion-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255, 255, 255, 0.9);
-            z-index: 200;
+            background: rgba(0,0,0,0.8);
             display: none;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 100;
         }
-
-        .congrats-title { font-size: 3rem; color: var(--primary-color); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        
-        @keyframes popIn {
-            0% { transform: scale(0); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
+        #completion-overlay h2 { font-size: 3rem; margin-bottom: 20px; animation: pop 0.5s infinite alternate;}
 
     </style>
 </head>
 <body>
 
-    <h1 id="main-title">スタンプラリー</h1>
-
-    <div class="stamp-counter">
-        スタンプ数：<span id="count-display" style="color: var(--primary-color); font-size: 1.5rem;">0</span>/7<br>
-        <small id="status-text">まだスタートです！</small>
+    <h1>🎉 スタンプラリー 🎉</h1>
+    
+    <!-- スタンプ表示エリア -->
+    <div class="stamp-grid" id="stamp-container">
+        <!-- JavaScript で生成されます -->
     </div>
 
-    <div class="game-list" id="game-container">
-        <!-- JavaScript でゲーム項目が生成されます -->
+    <!-- 操作ボタン -->
+    <div class="action-area">
+        <button id="scan-btn">📷 QR コードを読み取る</button>
+        
+        <!-- カメラ読み込みエリア -->
+        <div id="reader"></div>
     </div>
 
-    <!-- QR コード表示用モーダル -->
-    <div id="qr-area">
-        <span class="close-btn" onclick="closeQR()">×</span>
-        <h2>この QR コードを読み込んでください</h2>
-        <p style="color:#666; font-size:0.9rem;">スマホのカメラで読み込ませてください</p>
-        <div id="qr-code"></div>
-    </div>
-
-    <!-- コンプリート演出用モーダル -->
-    <div class="congrats-overlay" id="congrats">
-        <h1 class="congrats-title">🎉 おめでとうございます！ 🎉</h1>
-        <p style="font-size: 2rem;">コンプリートしました！</p>
-        <button onclick="location.reload()" style="margin-top:30px; padding:15px 30px; font-size:1.2rem; background:var(--primary-color); color:white; border:none; border-radius:50px;">リセットする</button>
+    <!-- コンプリート演出 -->
+    <div id="completion-overlay">
+        <h2>CONGRATULATIONS!</h2>
+        <p style="font-size: 1.5rem;">全スタンプを収集しました！</p>
+        <button onclick="closeOverlay()" style="margin-top:20px; padding:10px 20px; cursor:pointer;">閉じる</button>
     </div>
 
 <script>
-    // ゲームデータ設定
-    const games = [
-        { id: 'pinball', name: 'ピンポン玉ゲーム', icon: '🎱' },
+    // --- 設定データ ---
+    const booths = [
+        { id: 'pong', name: 'ピンポン玉ゲーム', icon: '🎱' },
         { id: 'ring', name: '輪投げ', icon: '🪀' },
-        { id: 'darts', name: '射的', icon: '🎯' },
-        { id: 'marbles', name: 'お手玉投げゲーム', icon: '🧿' },
-        { id: 'bowl', name: 'スーパーボウルすくい', icon: '🥣' },
+        { id: 'shooting', name: '射的', icon: '🎯' },
+        { id: 'marbles', name: 'お手玉投げゲーム', icon: '🔴' },
+        { id: 'superbowl', name: 'スーパーボウルすくい', icon: '🏈' },
         { id: 'reversi', name: 'オセロゲーム', icon: '⚫⚪' },
         { id: 'slipper', name: 'スリッパ飛ばし', icon: '🩴' }
     ];
 
-    let currentStampCount = 0; // 現在のスタンプ数
-    const totalStamps = 7;
+    // --- 初期化処理 ---
+    const container = document.getElementById('stamp-container');
+    const scanBtn = document.getElementById('scan-btn');
+    const readerDiv = document.getElementById('reader');
+    let html5QrcodeScanner;
 
-    // ゲームリストの描画
-    function renderGames() {
-        const container = document.getElementById('game-container');
-        games.forEach(game => {
-            const div = document.createElement('div');
-            div.className = 'game-item';
-            div.id = `game-${game.id}`;
-            div.innerHTML = `<span class="game-icon">${game.icon}</span><span class="game-name">${game.name}</span>`;
+    // ローカルストレージから現在の進捗を取得（なければ空配列）
+    function getProgress() {
+        return JSON.parse(localStorage.getItem('stampRallyProgress')) || [];
+    }
+
+    // スタンプを画面に描画する関数
+    function renderStamps() {
+        container.innerHTML = '';
+        booths.forEach(booth => {
+            const isCompleted = getProgress().includes(booth.id);
             
-            // クリックイベント（スタンプ押下）
-            div.onclick = () => handleStamp(game);
+            const div = document.createElement('div');
+            div.className = `stamp-item ${isCompleted ? 'completed' : ''}`;
+            div.innerHTML = `
+                <span class="stamp-icon">${booth.icon}</span>
+                <div class="stamp-name">${booth.name}</div>
+            `;
             container.appendChild(div);
         });
-    }
-
-    // スタンプ押下の処理
-    function handleStamp(game) {
-        const gameEl = document.getElementById(`game-${game.id}`);
-        
-        // 既に押している場合は何もしない
-        if (gameEl.classList.contains('stamped')) return;
-
-        // スタンプ押下演出（少し揺らす）
-        gameEl.style.transform = "scale(1.05)";
-        setTimeout(() => gameEl.style.transform = "scale(1)", 200);
-
-        // 状態変更
-        gameEl.classList.add('stamped');
-        
-        // カウント更新
-        currentStampCount++;
-        document.getElementById('count-display').innerText = currentStampCount;
-
-        // ステータステキスト更新
-        const statusText = document.getElementById('status-text');
-        if (currentStampCount === 1) {
-            statusText.innerText = "スタートしました！";
-        } else if (currentStampCount >= totalStamps - 2) {
-            statusText.innerText = "あと少し！ラストスパートです！";
-        }
 
         // コンプリート判定
-        if (currentStampCount === totalStamps) {
-            setTimeout(showCongrats, 1000); // 少し待ってから演出
+        if (getProgress().length === 7) {
+            setTimeout(() => {
+                document.getElementById('completion-overlay').style.display = 'flex';
+            }, 500);
         }
     }
 
-    // QR コード表示処理
-    function showQR(gameId) {
-        const qrArea = document.getElementById('qr-area');
-        const qrCodeDiv = document.getElementById('qr-code');
+    // --- QR コード読み込みロジック ---
+    
+    scanBtn.addEventListener('click', () => {
+        readerDiv.style.display = 'block';
         
-        // URL パラメータを生成（例：index.html?game=pinball）
-        const url = window.location.href.split('?')[0] + '?game=' + gameId;
+        html5QrcodeScanner = new Html5Qrcode("reader");
+        
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-        qrcode.toCanvas(url, { width: 256 }, function (error, canvas) {
-            if (!error) {
-                qrCodeDiv.appendChild(canvas);
-                qrArea.style.display = 'flex';
+        // カメラ起動（後方カメラ優先）
+        html5QrcodeScanner.start(
+            { facingMode: "environment" }, 
+            config,
+            onScanSuccess
+        ).catch(err => {
+            console.error("Camera start error:", err);
+            alert("カメラの起動に失敗しました。\nブラウザの許可を確認してください。");
+        });
+    });
+
+    function onScanSuccess(decodedText, decodedResult) {
+        // 読み取り成功時の処理
+        
+        // 1. カメラを停止して画面に戻す
+        html5QrcodeScanner.stop().then(() => {
+            readerDiv.style.display = 'none';
+            
+            // 2. QR コードの中身を確認（今回は ID を取得する想定）
+            // ※デモ用に、読み取った文字列そのものを処理します。
+            // 実運用では、各ブースの QR コードに「pong」「ring」などの ID が書かれている必要があります。
+            
+            const boothId = decodedText; 
+            
+            if (booths.find(b => b.id === boothId)) {
+                markStampAsCompleted(boothId);
+            } else {
+                alert("そのブースの QR コードではありません。\n正しい QR コードを読み込んでください。");
             }
+
+        }).catch(err => {
+            console.error("Camera stop error:", err);
         });
     }
 
-    // QR コード閉じる処理
-    function closeQR() {
-        document.getElementById('qr-area').style.display = 'none';
-    }
-
-    // コンプリート演出表示
-    function showCongrats() {
-        const congrats = document.getElementById('congrats');
-        congrats.style.display = 'flex';
+    // スタンプを押す処理
+    function markStampAsCompleted(boothId) {
+        const progress = getProgress();
         
-        // 背景を祝祭モードに変更
-        document.body.style.backgroundColor = '#ffeaa7';
-        document.querySelector('h1').innerText = "🎉 おめでとう！ 🎉";
+        if (!progress.includes(boothId)) {
+            progress.push(boothId);
+            localStorage.setItem('stampRallyProgress', JSON.stringify(progress));
+            
+            // 画面更新
+            renderStamps();
+            
+            // ボタンを元に戻す（少し待ってから）
+            setTimeout(() => {
+                scanBtn.style.display = 'block';
+            }, 1000);
+        } else {
+            alert("もう押していますよ！");
+        }
     }
 
-    // 初期化
-    renderGames();
+    function closeOverlay() {
+        document.getElementById('completion-overlay').style.display = 'none';
+    }
+
+    // ページ読み込み時に描画開始
+    renderStamps();
 
 </script>
 </body>
