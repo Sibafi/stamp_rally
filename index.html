@@ -12,6 +12,8 @@
             --secondary-color: #4ecdc4;
             --bg-color: #f7f9fc;
             --card-bg: #ffffff;
+            /* ハンコ風の色 */
+            --stamp-ink-red: rgba(255, 0, 0, 0.8); 
         }
 
         body {
@@ -39,44 +41,67 @@
             gap: 15px;
             max-width: 600px;
             margin: 0 auto 30px auto;
-            flex-grow: 1; /* 画面の空きスペースを埋める */
+            flex-grow: 1; 
         }
 
         @media (max-width: 480px) {
             .stamp-grid { grid-template-columns: 1fr; }
         }
 
+        /* ハンコ風のスタンプアイテム */
         .stamp-item {
-            background: var(--card-bg);
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
+            background-color: #fff;
+            border-radius: 25%; /* 丸みを帯びたハンコ風 */
+            padding: 10px;
+            box-shadow: 
+                inset 0 -3px 0 rgba(0,0,0,0.1), /* 内側の影で立体感 */
+                0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* バウンドするアニメーション */
             position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 4px solid #eee; /* 枠線 */
         }
 
         .stamp-item.completed {
-            background-color: #e8f5e9; 
-            border: 2px solid var(--secondary-color);
+            background-color: #fff0f0; /* 押された時の薄い赤背景 */
+            border-color: var(--primary-color);
+            transform: scale(1.05) rotate(-2deg); /* 少し傾けてリアル感 */
+            box-shadow: 
+                inset 0 -3px 0 rgba(0,0,0,0.1),
+                0 8px 15px rgba(255, 0, 0, 0.2); /* 赤い影 */
         }
 
-        /* スタンプ押された時のアニメーション */
+        .stamp-icon { 
+            font-size: 48px; 
+            display: block; 
+            margin-bottom: 5px;
+            filter: grayscale(100%); /* 最初は白黒でインク感を出す */
+            transition: all 0.3s ease;
+        }
+
+        .stamp-item.completed .stamp-icon { 
+            animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 押した時のバウンド */
+            filter: grayscale(0%); /* 完了したら色を戻す（または赤くする）*/
+        }
+
+        .stamp-name { 
+            font-weight: bold; 
+            font-size: 0.9rem; 
+            word-break: break-all;
+            color: #555;
+        }
+        
+        /* 押した時のインク乗せ演出（簡易） */
         @keyframes pop {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.3); filter: brightness(1.2); }
-            100% { transform: scale(1); }
+            0% { transform: scale(1); filter: grayscale(100%); opacity: 0.8;}
+            50% { transform: scale(1.3) rotate(-5deg); filter: grayscale(0%); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); filter: grayscale(0%); opacity: 1; }
         }
 
-        .stamp-icon { font-size: 48px; display: block; margin-bottom: 10px; transition: all 0.3s ease;}
-        
-        /* スタンプが完了した時のアニメーションクラス */
-        .stamp-item.completed .stamp-icon { animation: pop 0.5s ease; }
-
-        .stamp-name { font-weight: bold; font-size: 0.9rem; word-break: break-all;}
-        
         /* ボタンエリア */
         .action-area {
             max-width: 600px;
@@ -100,12 +125,9 @@
         #scan-btn { background-color: var(--primary-color); color: white; }
         #reset-btn { background-color: #95a5a6; color: white; font-size: 1rem;}
         
-        /* ボタンを非表示にするためのクラス */
         .hidden { opacity: 0; pointer-events: none; transform: scale(0.8); }
 
-        #scan-btn:active, #reset-btn:active { transform: scale(0.95); }
-
-        /* カメラ画面（読み取り中） */
+        /* カメラ画面 */
         #reader { 
             width: 100%; 
             display: none; 
@@ -192,7 +214,10 @@
         <button id="reset-btn" onclick="resetProgress()">🔄 スタンプをリセットする</button>
     </div>
 
-    <!-- コンプリート演出 -->
+    <!-- コンプリート演出用 Canvas (背景に配置) -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- コンプリート演出用オーバーレイ -->
     <div id="completion-overlay">
         <h2>CONGRATULATIONS!</h2>
         <p style="font-size: 1.5rem;">全スタンプを収集しました！</p>
@@ -231,6 +256,11 @@
             
             const div = document.createElement('div');
             div.className = `stamp-item ${isCompleted ? 'completed' : ''}`;
+            // クリックイベントを追加（ハンコを押す感覚）
+            div.onclick = () => {
+                if (!isCompleted) markStampAsCompleted(booth.id);
+            };
+
             div.innerHTML = `
                 <span class="stamp-icon">${booth.icon}</span>
                 <div class="stamp-name">${booth.name}</div>
@@ -242,6 +272,7 @@
         if (getProgress().length === 7) {
             setTimeout(() => {
                 document.getElementById('completion-overlay').style.display = 'flex';
+                startConfetti(); // 紙吹雪開始
             }, 500);
         }
     }
@@ -323,10 +354,90 @@
 
     function closeOverlay() {
         document.getElementById('completion-overlay').style.display = 'none';
+        stopConfetti(); // 演出停止
+    }
+
+    // --- 紙吹雪（クラッカー）演出用 Canvas スクリプト ---
+    const canvas = document.getElementById("confetti-canvas");
+    const ctx = canvas.getContext("2d");
+    let particles = [];
+    let animationId;
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    
+    // 紙吹雪のクラス
+    class Particle {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = -10; // 画面の上から出現
+            this.size = Math.random() * 8 + 4;
+            this.speedY = Math.random() * 3 + 2;
+            this.speedX = (Math.random() - 0.5) * 4;
+            this.color = `hsl(${Math.random() * 360}, 100%, 50%)`; // 色とりどり
+        }
+
+        update() {
+            this.y += this.speedY;
+            this.x += this.speedX;
+            if (this.size > 0.2) this.size -= 0.05; // 少し小さくなる演出
+        }
+
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function startConfetti() {
+        resizeCanvas();
+        particles = [];
+        
+        // 紙吹雪の数を設定（多めにする）
+        for (let i = 0; i < 150; i++) {
+            particles.push(new Particle());
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 背景に少しグラデーションを入れる（暗い夜空風）
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, "rgba(255, 100, 100, 0.3)"); // 赤み
+            gradient.addColorStop(1, "rgba(0, 0, 0, 0.8)");
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach((p, index) => {
+                p.update();
+                p.draw();
+                
+                // 画面外に出たら削除
+                if (p.y > canvas.height + 10 || p.size <= 0.2) {
+                    setTimeout(() => {
+                        particles.splice(index, 1);
+                    }, 0);
+                }
+            });
+
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        animate();
+    }
+
+    function stopConfetti() {
+        cancelAnimationFrame(animationId);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
     // ページ読み込み時に描画開始
     renderStamps();
+    window.addEventListener('resize', resizeCanvas);
 
 </script>
 </body>
