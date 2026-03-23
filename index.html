@@ -106,7 +106,7 @@
         
         #scan-btn:active, #reset-btn:active { transform: scale(0.95); }
 
-        /* --- QR コード読み取り画面（モーダル風） --- */
+        /* --- QR コード読み取り画面（モーダル風）修正版 --- */
         #reader { 
             width: 100%; 
             display: none; 
@@ -118,8 +118,8 @@
             bottom: 0;
             z-index: 50;
             
-            /* モーダル風にするための背景 */
-            background-color: rgba(0, 0, 0, 0.8); 
+            /* 【重要】背景を透明または薄いグレーに戻してカメラ映像が見えるように */
+            background-color: rgba(240, 240, 240, 0.9); 
             display: flex;
             justify-content: center;
             align-items: center;
