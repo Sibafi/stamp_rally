@@ -129,6 +129,7 @@
             height: 100%;
             position: relative;
             z-index: 50; /* カメラ画面 */
+            background-color: transparent; /* 背景色を透明に */
         }
 
         /* --- コンプリート演出 (紙吹雪) --- */
@@ -221,7 +222,8 @@
     const scanBtn = document.getElementById('scan-btn');
     const readerDiv = document.getElementById('reader');
     const overlayDiv = document.getElementById('scan-overlay');
-    let html5QrcodeScanner;
+    
+    let html5Qrcode; // Html5Qrcode のインスタンス
 
     // ローカルストレージから現在の進捗を取得（なければ空配列）
     function getProgress() {
@@ -256,23 +258,32 @@
         }
     }
 
-    // --- QR コード読み込みロジック ---
+    // --- QR コード読み込みロジック (修正版) ---
     
     scanBtn.addEventListener('click', () => {
         readerDiv.style.display = 'block';
         
-        html5QrcodeScanner = new Html5Qrcode("reader");
+        // HTML5-QRCode ライブラリの初期化
+        html5Qrcode = new Html5Qrcode("reader");
         
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
         // カメラ起動（後方カメラ優先）
-        html5QrcodeScanner.start(
+        html5Qrcode.start(
             { facingMode: "environment" }, 
             config,
             onScanSuccess
         ).catch(err => {
             console.error("Camera start error:", err);
-            alert("カメラの起動に失敗しました。\nブラウザの許可を確認してください。");
+            
+            // エラーハンドリング：HTTPS がない場合や権限エラーの表示
+            if (err.message && err.message.includes('NotAllowedError')) {
+                alert("カメラへのアクセスが拒否されました。\nブラウザの許可画面で「許可」を選んでください。");
+            } else if (!window.location.protocol.startsWith('https') && !window.location.hostname === 'localhost') {
+                alert("⚠️ 注意：\nこの機能は HTTPS の環境（または localhost）でのみ動作します。\nローカルファイル (file://) や HTTP サーバーなしではカメラが使えません。");
+            } else {
+                alert("カメラの起動に失敗しました。\nブラウザの許可を確認してください。");
+            }
         });
 
         // 読み取り開始時に背景を暗くする（モーダル風）
@@ -283,7 +294,7 @@
         // 読み取り成功時の処理
         
         // 1. カメラを停止して画面に戻す
-        html5QrcodeScanner.stop().then(() => {
+        html5Qrcode.stop().then(() => {
             readerDiv.style.display = 'none';
             
             // 2. QR コードの中身を確認（今回は ID を取得する想定）
