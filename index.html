@@ -4,18 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>スタンプラリー</title>
-    
     <!-- QR コード読み込みライブラリ -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <!-- 紙吹雪演出用ライブラリ (canvas-confetti) -->
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
     <style>
         :root {
             --primary-color: #ff6b6b;
             --secondary-color: #4ecdc4;
             --bg-color: #f7f9fc;
             --card-bg: #ffffff;
+            --stamp-ink-color: rgba(255, 107, 107, 0.8); /* スタンプのインク色 */
         }
 
         body {
@@ -25,7 +22,7 @@
             padding: 20px;
             text-align: center;
             color: #333;
-            overflow-x: hidden; /* スクロールバーの横出し防止 */
+            overflow-x: hidden; /* スクロール防止 */
         }
 
         h1 { 
@@ -34,7 +31,7 @@
             word-break: break-all;
         }
         
-        /* --- スタンプカード風デザイン --- */
+        /* --- スタンプ表示エリア (ハンコ風) --- */
         .stamp-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -47,40 +44,37 @@
             .stamp-grid { grid-template-columns: 1fr; }
         }
 
-        /* カードのデザイン */
         .stamp-item {
             background: var(--card-bg);
-            border-radius: 20px;
-            padding: 25px 15px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1); /* カードっぽい影 */
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* バウンドするアニメーション用 */
+            border-radius: 50%; /* ハンコのような丸い形 */
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1), inset 0 -3px 0 var(--stamp-ink-color); /* インクがついたような影 */
+            transition: all 0.3s ease;
             position: relative;
-            border: 4px solid transparent;
             cursor: pointer;
+            border: 4px solid #eee;
         }
 
         .stamp-item.completed {
-            background-color: #e8f5e9; 
+            background-color: var(--card-bg); 
+            /* 押された状態のスタイル */
+            box-shadow: inset 0 -5px 0 var(--primary-color), 0 10px 20px rgba(0,0,0,0.2);
             border-color: var(--secondary-color);
-            transform: translateY(-10px) scale(1.02); /* 少し浮き上がる */
-            box-shadow: 0 15px 30px rgba(78, 205, 196, 0.4);
         }
 
-        .stamp-icon { font-size: 50px; display: block; margin-bottom: 10px; }
-        .stamp-name { 
-            font-weight: bold; 
-            font-size: 1rem; 
-            word-break: break-all;
-            color: #555;
+        .stamp-icon { font-size: 40px; display: block; margin-bottom: 5px; pointer-events: none;}
+        .stamp-name { font-weight: bold; font-size: 0.9rem; word-break: break-all; pointer-events: none;}
+        
+        /* ハンコ押した時のアニメーション */
+        @keyframes stamp-ink {
+            0% { transform: scale(1); filter: blur(0px); }
+            50% { transform: scale(1.3) rotate(-2deg); filter: blur(2px); } /* インクが滲む */
+            100% { transform: scale(1.1) rotate(0deg); filter: blur(0px); }
         }
 
-        /* スタンプ押された時のアニメーション */
-        @keyframes pop {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.3); }
-            100% { transform: scale(1); }
+        .stamp-item.completed .stamp-icon { 
+            animation: stamp-ink 0.4s ease-out; /* アニメーション適用 */
         }
-        .stamp-item.completed .stamp-icon { animation: pop 0.4s ease; }
 
         /* --- ボタンエリア --- */
         .action-area {
@@ -106,8 +100,8 @@
         
         #scan-btn:active, #reset-btn:active { transform: scale(0.95); }
 
-        /* --- QR コード読み取り画面（モーダル風）修正版 --- */
-        #reader { 
+        /* --- QR コード読み取り画面 (モーダル風) --- */
+        #reader-container { 
             width: 100%; 
             display: none; 
             margin-top: 20px;
@@ -117,53 +111,64 @@
             right: 0;
             bottom: 0;
             z-index: 50;
-            
-            /* 【重要】背景を透明または薄いグレーに戻してカメラ映像が見えるように */
-            background-color: rgba(240, 240, 240, 0.9); 
+        }
+
+        /* モーダルの背景（暗くする） */
+        #scan-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.85); /* 暗い背景 */
             display: flex;
             justify-content: center;
             align-items: center;
+            z-index: 49;
         }
 
-        #reader html5-qrcode {
-            width: 100%;
+        #reader { 
+            width: 100%; 
             height: 100%;
-            /* ライブラリ内部のスタイル調整 */
+            position: relative;
+            z-index: 50; /* カメラ画面 */
         }
 
-        /* コンプリート演出用オーバーレイ */
+        /* --- コンプリート演出 (紙吹雪) --- */
         #completion-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255, 255, 255, 0.9); /* 白くして文字が見えるように */
+            background: rgba(255, 255, 255, 0.9); /* 白く明るく */
             display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: #333;
             z-index: 100;
             padding: 20px;
             box-sizing: border-box;
         }
 
         #completion-overlay h2 { 
-            font-size: clamp(2rem, 8vw, 4rem); 
+            font-size: clamp(2rem, 8vw, 3.5rem); 
             margin-bottom: 10px; 
-            animation: pop 0.5s infinite alternate;
-            text-align: center;
             color: var(--primary-color);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
 
-        #completion-overlay p { font-size: clamp(1rem, 4vw, 2rem); margin-bottom: 30px;}
+        #completion-overlay p { font-size: clamp(1rem, 4vw, 1.5rem); margin-bottom: 20px; color: #333;}
         
         .overlay-btn {
-            padding: 15px 40px;
+            padding: 15px 30px;
             background-color: var(--secondary-color);
             color: white;
             border: none;
             border-radius: 50px;
             font-size: 1.2rem;
             cursor: pointer;
-            box-shadow: 0 4px 10px rgba(78, 205, 196, 0.3);
+        }
+
+        /* コンフェッティ用 Canvas */
+        #confetti-canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 99;
         }
 
     </style>
@@ -174,7 +179,10 @@
     <h1>🎉 スタンプラリー 🎉</h1>
     
     <!-- QR コード読み取り画面（初期は非表示） -->
-    <div id="reader"></div>
+    <div id="reader-container">
+        <div id="scan-overlay"></div>
+        <div id="reader"></div>
+    </div>
 
     <!-- 各ブースのスタンプラリー -->
     <div class="stamp-grid" id="stamp-container">
@@ -212,6 +220,7 @@
     const container = document.getElementById('stamp-container');
     const scanBtn = document.getElementById('scan-btn');
     const readerDiv = document.getElementById('reader');
+    const overlayDiv = document.getElementById('scan-overlay');
     let html5QrcodeScanner;
 
     // ローカルストレージから現在の進捗を取得（なければ空配列）
@@ -227,6 +236,10 @@
             
             const div = document.createElement('div');
             div.className = `stamp-item ${isCompleted ? 'completed' : ''}`;
+            // 押した時のアニメーションクラスを付与
+            if (isCompleted) {
+                div.classList.add('animate-ink'); 
+            }
             div.innerHTML = `
                 <span class="stamp-icon">${booth.icon}</span>
                 <div class="stamp-name">${booth.name}</div>
@@ -238,7 +251,7 @@
         if (getProgress().length === 7) {
             setTimeout(() => {
                 document.getElementById('completion-overlay').style.display = 'flex';
-                fireConfetti(); // クラッカー演出を実行
+                startConfetti(); // 紙吹雪演出開始
             }, 500);
         }
     }
@@ -262,9 +275,8 @@
             alert("カメラの起動に失敗しました。\nブラウザの許可を確認してください。");
         });
 
-        // カメラ起動時に、タイトルとボタンを非表示にする処理（オプション）
-        // 今回はユーザーが操作しやすいように非表示にはしませんが、
-        // 画面全体を暗くしているので視認性は確保されています。
+        // 読み取り開始時に背景を暗くする（モーダル風）
+        overlayDiv.style.display = 'flex';
     });
 
     function onScanSuccess(decodedText, decodedResult) {
@@ -320,36 +332,80 @@
 
     function closeOverlay() {
         document.getElementById('completion-overlay').style.display = 'none';
+        stopConfetti(); // 演出停止
     }
 
-    // --- クラッカー演出関数 ---
-    function fireConfetti() {
-        var duration = 5 * 1000;
-        var animationEnd = Date.now() + duration;
-        var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+    // --- コンフェッティ（紙吹雪）演出ロジック ---
+    
+    let confettiInterval;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
-        function randomInRange(min, max) {
-            return Math.random() * (max - min) + min;
+    function startConfetti() {
+        const overlay = document.getElementById('completion-overlay');
+        // Canvas をオーバーレイの直下に配置
+        overlay.appendChild(canvas);
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const particles = [];
+        const colors = ['#ff6b6b', '#4ecdc4', '#ffeaa7', '#5f27cd']; // 派手な色
+
+        function createParticle() {
+            return {
+                x: Math.random() * canvas.width,
+                y: -10,
+                size: Math.random() * 10 + 5,
+                speedY: Math.random() * 3 + 2,
+                speedX: (Math.random() - 0.5) * 4,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                rotation: Math.random() * 360,
+                rotationSpeed: (Math.random() - 0.5) * 10
+            };
         }
 
-        var interval = setInterval(function() {
-            var timeLeft = animationEnd - Date.now();
+        // 初期の粒子数
+        for(let i=0; i<200; i++) {
+            particles.push(createParticle());
+        }
 
-            if (timeLeft <= 0) {
-                return clearInterval(interval);
-            }
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            particles.forEach((p, index) => {
+                p.y += p.speedY;
+                p.x += Math.sin(p.y * 0.01) * 2; // 波打つ動き
+                p.rotation += p.rotationSpeed;
 
-            var particleCount = 50 * (timeLeft / duration);
-            // 左右から紙吹雪を飛ばす
-            confetti(Object.assign({}, defaults, { 
-                particleCount, 
-                origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } 
-            }));
-            confetti(Object.assign({}, defaults, { 
-                particleCount, 
-                origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } 
-            }));
-        }, 250);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate((p.rotation * Math.PI) / 180);
+                ctx.fillStyle = p.color;
+                
+                // 紙吹雪の形（四角形）
+                ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                ctx.restore();
+
+                // 画面外に出たらリセット
+                if (p.y > canvas.height) {
+                    particles[index] = createParticle();
+                }
+            });
+
+            confettiInterval = requestAnimationFrame(draw);
+        }
+
+        draw();
+    }
+
+    function stopConfetti() {
+        cancelAnimationFrame(confettiInterval);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Canvas を DOM から削除（メモリ解放のため）
+        if(canvas.parentNode) {
+            canvas.parentNode.removeChild(canvas);
+        }
     }
 
     // ページ読み込み時に描画開始
