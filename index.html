@@ -119,17 +119,38 @@
         
         #scan-btn:active, #reset-btn:active { transform: scale(0.95); }
 
-        /* カメラ画面 */
-        #reader { 
-            width: 100%; 
+        /* カメラ画面（別画面風） */
+        #reader-container { 
             display: none; 
-            margin-top: 20px;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 50;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 背景の暗転部分 */
+        #reader-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.85); /* 背景を暗くする */
+            backdrop-filter: blur(2px); /* 少しぼかしを入れる */
+        }
+
+        /* カメラ画面本体（スマホサイズ） */
+        #reader { 
+            width: auto; 
+            height: auto;
+            max-width: 90vw; /* 幅は画面の 90% */
+            aspect-ratio: 9/16; /* スマホ縦横比 */
+            background-color: black;
+            border-radius: 20px; /* 角を丸くする */
+            box-shadow: 
+                0 0 50px rgba(0,0,0,0.8), /* 影で浮き上がらせる */
+                inset 0 0 10px rgba(255,255,255,0.2); /* 内側の光 */
+            border: 4px solid #fff; /* 白い枠線 */
+            position: relative;
+            z-index: 1001;
         }
 
         /* コンプリート演出用オーバーレイ */
@@ -141,7 +162,7 @@
             justify-content: center;
             align-items: center;
             color: white;
-            z-index: 100;
+            z-index: 1002; /* カメラより上 */
             padding: 20px;
             box-sizing: border-box;
         }
@@ -172,8 +193,13 @@
     <!-- タイトル -->
     <h1>🎉 スタンプラリー 🎉</h1>
     
-    <!-- QR コード読み取り画面（初期は非表示） -->
-    <div id="reader"></div>
+    <!-- カメラ画面コンテナ（別画面風） -->
+    <div id="reader-container">
+        <!-- 背景の暗転部分 -->
+        <div id="reader-overlay"></div>
+        <!-- QR コード読み取り画面 -->
+        <div id="reader"></div>
+    </div>
 
     <!-- 各ブースのスタンプラリー -->
     <div class="stamp-grid" id="stamp-container">
@@ -210,6 +236,7 @@
     // --- 初期化処理 ---
     const container = document.getElementById('stamp-container');
     const scanBtn = document.getElementById('scan-btn');
+    const readerContainer = document.getElementById('reader-container');
     const readerDiv = document.getElementById('reader');
     let html5QrcodeScanner;
 
@@ -252,7 +279,7 @@
     // --- QR コード読み込みロジック ---
     
     scanBtn.addEventListener('click', () => {
-        readerDiv.style.display = 'block';
+        readerContainer.style.display = 'flex'; // コンテナを表示
         
         html5QrcodeScanner = new Html5Qrcode("reader");
         
@@ -275,7 +302,7 @@
         
         // 1. カメラを停止して画面に戻す
         html5QrcodeScanner.stop().then(() => {
-            readerDiv.style.display = 'none';
+            readerContainer.style.display = 'none'; // コンテナを非表示
             
             // 2. QR コードの中身を確認（今回は ID を取得する想定）
             const boothId = decodedText; 
